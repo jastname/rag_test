@@ -41,10 +41,11 @@ public class SimpleEmbeddingService implements EmbeddingService {
         String primaryModel = normalizeModelName(configuredModel);
         String fallbackModel = fallbackModelName(configuredModel, primaryModel);
         
-        System.out.println("#####################################");
-        System.out.println(primaryModel);
-        System.out.println(fallbackModel);
-        System.out.println("#####################################");
+		/*
+		 * System.out.println("#####################################");
+		 * System.out.println(primaryModel); System.out.println(fallbackModel);
+		 * System.out.println("#####################################");
+		 */
         
         OllamaEmbeddingResponse response;
         try {

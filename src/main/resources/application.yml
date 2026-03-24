@@ -25,8 +25,8 @@ app:
       num-of-rows: 100
       response-type: json
   rag:
-    chunk-size: 100
-    chunk-overlap: 20
+    chunk-size: 500
+    chunk-overlap: 50
     top-k: 10
     embedding:
       dimensions: 64

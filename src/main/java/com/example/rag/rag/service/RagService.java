@@ -147,6 +147,7 @@ public class RagService {
     private String buildChunkSourceText(RagStorySource story) {
         return String.join("\n",
                 "title: " + safe(story.getTitle()),
+                "storyTitle: " + safe(story.getTitle()),
                 "description: " + safe(story.getDescription()));
     }
 

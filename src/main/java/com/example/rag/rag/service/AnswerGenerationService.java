@@ -77,19 +77,28 @@ public class AnswerGenerationService {
         StringJoiner joiner = new StringJoiner("\n\n");
         for (int i = 0; i < references.size(); i++) {
             RagChunkResult ref = references.get(i);
-            joiner.add("[문맥 " + (i + 1) + "]\n"
-                    + "제목: " + safe(ref.getTitle()) + "\n"
-                    + "유사도: " + ref.getSimilarity() + "\n"
-                    + "출처: " + safe(ref.getSourceUrl()) + "\n"
-                    + "내용: " + safe(ref.getChunkText()));
+            joiner.add("#" + (i + 1) + " " + safe(ref.getTitle()) + "\n"
+                    + "<pre>" + extractDescription(ref.getChunkText()) + "</pre>");
         }
 
         return "당신은 검색 증강 생성(RAG) 도우미입니다. "
                 + "반드시 제공된 문맥만 근거로 한국어로 답변하세요. "
-                + "문맥에 없는 내용은 추측하지 말고 모른다고 답하세요. "
-                + "가능하면 핵심 답변 후 근거를 짧게 정리하세요.\n\n"
+                + "어린아이에게 알려주는 식으로 답변하세요. "
+                + "문맥에 없는 내용은 추측하지 말고 모른다고 답하세요. \n\n"
                 + "질문:\n" + question + "\n\n"
                 + "검색 문맥:\n" + joiner;
+    }
+
+    private String extractDescription(String chunkText) {
+        if (!StringUtils.hasText(chunkText)) {
+            return "";
+        }
+        for (String line : chunkText.split("\\n")) {
+            if (line.startsWith("description: ")) {
+                return line.substring("description: ".length()).trim();
+            }
+        }
+        return chunkText.trim();
     }
 
     private String safe(String value) {
