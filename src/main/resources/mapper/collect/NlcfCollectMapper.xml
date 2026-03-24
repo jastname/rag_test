@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.example.rag.collect.mapper.NlcfCollectMapper">
+
+    <delete id="deleteAllStories">
+        DELETE FROM tb_nlcf_story
+    </delete>
+
+    <delete id="deleteAllCollectHistory">
+        DELETE FROM tb_nlcf_collect
+    </delete>
+
+    <select id="insertCollectHistory"
+        parameterType="com.example.rag.collect.model.CollectHistory"
+        resultType="long">
+
+    INSERT INTO tb_nlcf_collect (
+        request_url,
+        page_no,
+        num_of_rows,
+        result_code,
+        result_msg,
+        success_yn,
+        error_message,
+        collected_count,
+        raw_response,
+        reg_dt
+    )
+    VALUES (
+        #{requestUrl},
+        #{pageNo},
+        #{numOfRows},
+        #{resultCode},
+        #{resultMsg},
+        #{successYn},
+        #{errorMessage},
+        #{collectedCount},
+        #{rawResponse},
+        CURRENT_TIMESTAMP
+    )
+    RETURNING collect_id
+
+</select>
+
+    <insert id="upsertStory"
+            parameterType="com.example.rag.collect.dto.KcisaItem">
+        INSERT INTO tb_nlcf_story (
+            collect_id,
+            title,
+            alternative_title,
+            creator,
+            reg_date_raw,
+            collection_db,
+            subject_category,
+            subject_keyword,
+            extent,
+            description,
+            spatial_coverage,
+            temporal_info,
+            person_info,
+            language,
+            source_title,
+            reference_identifier,
+            rights_info,
+            copyright_others,
+            content_url,
+            contributor,
+            hash_key,
+            use_yn,
+            reg_dt,
+            upd_dt
+        )
+        VALUES (
+            #{collectId},
+            #{title},
+            #{alternativeTitle},
+            #{creator},
+            #{regDate},
+            #{collectionDb},
+            #{subjectCategory},
+            #{subjectKeyword},
+            #{extent},
+            #{description},
+            #{spatialCoverage},
+            #{temporal},
+            #{person},
+            #{language},
+            #{sourceTitle},
+            #{referenceIdentifier},
+            #{rights},
+            #{copyrightOthers},
+            #{url},
+            #{contributor},
+            #{hashKey},
+            'Y',
+            CURRENT_TIMESTAMP,
+            CURRENT_TIMESTAMP
+        )
+        ON CONFLICT (hash_key)
+        DO UPDATE SET
+            collect_id           = EXCLUDED.collect_id,
+            title                = EXCLUDED.title,
+            alternative_title    = EXCLUDED.alternative_title,
+            creator              = EXCLUDED.creator,
+            reg_date_raw         = EXCLUDED.reg_date_raw,
+            collection_db        = EXCLUDED.collection_db,
+            subject_category     = EXCLUDED.subject_category,
+            subject_keyword      = EXCLUDED.subject_keyword,
+            extent               = EXCLUDED.extent,
+            description          = EXCLUDED.description,
+            spatial_coverage     = EXCLUDED.spatial_coverage,
+            temporal_info        = EXCLUDED.temporal_info,
+            person_info          = EXCLUDED.person_info,
+            language             = EXCLUDED.language,
+            source_title         = EXCLUDED.source_title,
+            reference_identifier = EXCLUDED.reference_identifier,
+            rights_info          = EXCLUDED.rights_info,
+            copyright_others     = EXCLUDED.copyright_others,
+            content_url          = EXCLUDED.content_url,
+            contributor          = EXCLUDED.contributor,
+            use_yn               = 'Y',
+            upd_dt               = CURRENT_TIMESTAMP
+    </insert>
+
+</mapper>

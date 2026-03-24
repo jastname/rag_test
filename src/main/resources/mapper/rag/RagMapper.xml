@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.example.rag.rag.mapper.RagMapper">
+
+    <select id="findAllStoriesForRag" resultType="com.example.rag.rag.model.RagStorySource">
+        SELECT
+            story_id,
+            collect_id,
+            title,
+            creator,
+            description,
+            subject_keyword,
+            source_title,
+            content_url
+        FROM tb_nlcf_story
+        WHERE use_yn = 'Y'
+        ORDER BY story_id
+    </select>
+
+    <delete id="deleteAllStoryVectors">
+        DELETE FROM tb_nlcf_story_embedding
+    </delete>
+
+    <delete id="deleteAllStoryChunks">
+        DELETE FROM tb_nlcf_story_chunk
+    </delete>
+
+    <insert id="insertStoryChunk" parameterType="com.example.rag.rag.model.StoryChunk" useGeneratedKeys="true" keyProperty="chunkId" keyColumn="chunk_id">
+        INSERT INTO tb_nlcf_story_chunk (
+            story_id,
+            chunk_no,
+            chunk_text,
+            token_count,
+            reg_dt
+        ) VALUES (
+            #{storyId},
+            #{chunkIndex},
+            #{chunkText},
+            NULL,
+            CURRENT_TIMESTAMP
+        )
+    </insert>
+
+    <insert id="insertStoryVector" parameterType="com.example.rag.rag.model.StoryVector" useGeneratedKeys="true" keyProperty="embeddingId" keyColumn="embedding_id">
+        INSERT INTO tb_nlcf_story_embedding (
+            chunk_id,
+            story_id,
+            embedding_model,
+            embedding_vector,
+            reg_dt
+        ) VALUES (
+            #{chunkId},
+            #{storyId},
+            #{embeddingModel},
+            CAST(#{vectorJson} AS vector),
+            CURRENT_TIMESTAMP
+        )
+    </insert>
+
+    <select id="findAllChunksWithVectors" resultType="com.example.rag.rag.model.StoryChunk">
+        SELECT
+            c.chunk_id,
+            c.story_id,
+            c.chunk_no AS chunk_index,
+            c.chunk_text,
+            CAST(e.embedding_vector AS text) AS vector_json
+        FROM tb_nlcf_story_chunk c
+        JOIN tb_nlcf_story_embedding e ON e.chunk_id = c.chunk_id
+        ORDER BY c.chunk_id
+    </select>
+
+    <select id="findChunksByIds" resultType="com.example.rag.rag.model.StoryChunk">
+        SELECT
+            chunk_id,
+            story_id,
+            chunk_no AS chunk_index,
+            chunk_text
+        FROM tb_nlcf_story_chunk
+        WHERE chunk_id IN
+        <foreach collection="chunkIds" item="chunkId" open="(" close=")" separator=",">
+            #{chunkId}
+        </foreach>
+    </select>
+
+</mapper>

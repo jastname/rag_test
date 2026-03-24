@@ -1,0 +1,45 @@
+spring:
+  application:
+    name: rag-backend
+
+  mvc:
+    view:
+      prefix: /WEB-INF/views/
+      suffix: .jsp
+
+  datasource:
+    url: "dataBase-url"
+    username: ""
+    password: ""
+    driver-class-name: org.postgresql.Driver
+
+server:
+  port: 8080
+
+app:
+  collect:
+    kcisa:
+      base-url: https://api.kcisa.kr
+      endpoint: /openapi/service/rest/meta14/getNLCF031801
+      service-key: "service-key"
+      num-of-rows: 100
+      response-type: json
+  rag:
+    chunk-size: 100
+    chunk-overlap: 20
+    top-k: 10
+    embedding:
+      dimensions: 64
+      model: nomic-embed-text:latest
+      api-url: http://127.0.0.1:11434/api/embeddings
+      api-key:
+    llm:
+      api-url: http://127.0.0.1:11434/api/generate
+      api-key:
+      model: qwen3:4b
+
+mybatis:
+  mapper-locations: classpath:/mapper/**/*.xml
+  type-aliases-package: com.example.rag.collect.dto, com.example.rag.collect.model, com.example.rag.rag.model
+  configuration:
+    map-underscore-to-camel-case: true
