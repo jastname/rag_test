@@ -213,7 +213,7 @@ DB에 저장된 전체 동화(`tb_nlcf_story`)를 읽어서 텍스트 청크를 
 ```bat
 ollama pull qwen3:4b
 ollama pull nomic-embed-text:latest
-C:\Users\LANDSOFT\git\rag_test\gradlew.bat bootRun
+C:\Users\YOU\git\rag_test\gradlew.bat bootRun
 ```
 
 애플리케이션 실행 후 접속 예시:
