@@ -17,6 +17,7 @@ public class NlcfCollectController {
         this.nlcfCollectService = nlcfCollectService;
     }
 
+    // 지정한 페이지 번호에 대해 현재 수집 가능한 건수를 확인한다.
     @RequestMapping("/api/collect/nlcf/{pageNo}")
     public Map<String, Object> collectPage(@PathVariable("pageNo") int pageNo) {
         int count = nlcfCollectService.collectPage(pageNo);
@@ -41,6 +42,4 @@ public class NlcfCollectController {
                 "savedCount", totalCount
         );
     }
-    
-    
 }
