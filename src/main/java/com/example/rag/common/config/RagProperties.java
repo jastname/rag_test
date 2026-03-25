@@ -51,6 +51,7 @@ public class RagProperties {
         this.llm = llm;
     }
 
+    // 임베딩 모델 호출에 필요한 설정 묶음이다.
     public static class Embedding {
         private int dimensions = 64;
         private String model = "nomic-embed-text:latest";
@@ -90,6 +91,7 @@ public class RagProperties {
         }
     }
 
+    // 답변 생성용 LLM 호출에 필요한 설정 묶음이다.
     public static class Llm {
         private String apiUrl;
         private String apiKey;

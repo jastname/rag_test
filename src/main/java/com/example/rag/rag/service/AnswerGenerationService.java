@@ -47,6 +47,7 @@ public class AnswerGenerationService {
                     .accept(MediaType.APPLICATION_JSON);
 
             String apiKey = ragProperties.getLlm().getApiKey();
+            // 로컬 Ollama 는 보통 키가 없지만, 외부 호환 API 로 바꿔도 같은 코드를 재사용할 수 있게 열어둔다.
             if (StringUtils.hasText(apiKey)) {
                 request = request.header("Authorization", "Bearer " + apiKey);
             }
@@ -77,6 +78,7 @@ public class AnswerGenerationService {
         StringJoiner joiner = new StringJoiner("\n\n");
         for (int i = 0; i < references.size(); i++) {
             RagChunkResult ref = references.get(i);
+            // 모델이 참조 순서를 이해하기 쉽도록 번호와 제목을 함께 묶어 전달한다.
             joiner.add("#" + (i + 1) + " " + safe(ref.getTitle()) + "\n"
                     + "<pre>" + extractDescription(ref.getChunkText()) + "</pre>");
         }

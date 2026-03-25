@@ -43,20 +43,55 @@ class AnswerGenerationServiceTest {
         AnswerGenerationService service = new AnswerGenerationService(RestClient.create(), properties);
         RagChunkResult chunk = new RagChunkResult();
         chunk.setTitle("설화 제목");
-        chunk.setChunkText("옛날 옛적 이야기입니다.");
+        chunk.setChunkText("title: 설화 제목\nstoryTitle: 설화 제목\ndescription: 옛날 옛적 이야기입니다.");
         chunk.setSourceUrl("https://example.com/story");
         chunk.setSimilarity(0.91d);
 
         String answer = service.generateAnswer("무슨 이야기야?", List.of(chunk));
         RecordedRequest request = server.takeRequest();
+        String requestBody = request.getBody().readUtf8();
 
         assertThat(answer).isEqualTo("요약 답변입니다.");
         assertThat(request.getPath()).isEqualTo("/api/generate");
         assertThat(request.getMethod()).isEqualTo("POST");
-        assertThat(request.getBody().readUtf8()).contains("\"model\":\"qwen3:4b\"")
+        assertThat(requestBody).contains("\"model\":\"qwen3:4b\"")
                 .contains("\"stream\":false")
                 .contains("무슨 이야기야?")
-                .contains("설화 제목");
+                .contains("#1 설화 제목")
+                .contains("<pre>옛날 옛적 이야기입니다.</pre>")
+                .doesNotContain("storyTitle:")
+                .doesNotContain("title: 설화 제목")
+                .doesNotContain("description: 옛날 옛적 이야기입니다.");
+    }
+
+    @Test
+    void generateAnswerUsesOnlyDescriptionInsidePreTag() throws Exception {
+        server.start();
+        server.enqueue(new MockResponse()
+                .setHeader("Content-Type", "application/json")
+                .setBody("{" +
+                        "\"response\":\"응답\"," +
+                        "\"done\":true" +
+                        "}"));
+
+        RagProperties properties = new RagProperties();
+        properties.getLlm().setApiUrl(server.url("/api/generate").toString());
+
+        AnswerGenerationService service = new AnswerGenerationService(RestClient.create(), properties);
+        RagChunkResult chunk = new RagChunkResult();
+        chunk.setTitle("슬기로운 효자");
+        chunk.setChunkText("title: 슬기로운 효자\nstoryTitle: 슬기로운 효자\ndescription: 옛날에 한 부부가 살았어요.");
+
+        service.generateAnswer("이야기 요약해줘", List.of(chunk));
+        RecordedRequest request = server.takeRequest();
+        String requestBody = request.getBody().readUtf8();
+
+        assertThat(requestBody).contains("#1 슬기로운 효자")
+                .contains("<pre>옛날에 한 부부가 살았어요.</pre>")
+                .doesNotContain("storyTitle: 슬기로운 효자")
+                .doesNotContain("유사도:")
+                .doesNotContain("출처:")
+                .doesNotContain("내용:");
     }
 
     @Test

@@ -8,9 +8,9 @@ spring:
       suffix: .jsp
 
   datasource:
-    url: "dataBase-url"
-    username: ""
-    password: ""
+    url: "jdbc:postgresql://localhost:15432/appdb"
+    username: "appTest"
+    password: "landsoft13!#"
     driver-class-name: org.postgresql.Driver
 
 server:
@@ -21,7 +21,7 @@ app:
     kcisa:
       base-url: https://api.kcisa.kr
       endpoint: /openapi/service/rest/meta14/getNLCF031801
-      service-key: "service-key"
+      service-key: 8d897deb-f057-4a73-b042-474b0b73954f
       num-of-rows: 100
       response-type: json
   rag:

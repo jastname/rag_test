@@ -23,6 +23,7 @@ public class TextChunker {
         }
 
         int chunkSize = Math.max(100, ragProperties.getChunkSize());
+        // overlap 은 과도하게 커지면 무한 반복에 가까워질 수 있어 chunkSize 절반 이하로 제한한다.
         int overlap = Math.max(0, Math.min(ragProperties.getChunkOverlap(), chunkSize / 2));
         int step = Math.max(1, chunkSize - overlap);
 
@@ -40,6 +41,7 @@ public class TextChunker {
         return chunks;
     }
 
+    // 줄바꿈과 중복 공백을 정리해 문자 길이 기준 청킹 결과를 일정하게 만든다.
     private String normalize(String text) {
         if (text == null) {
             return "";

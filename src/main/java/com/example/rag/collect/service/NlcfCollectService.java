@@ -36,11 +36,13 @@ public class NlcfCollectService {
         this.objectMapper = objectMapper;
     }
 
+    // 저장 없이 외부 API 응답 기준 수집 건수만 확인할 때 사용한다.
     public int collectPage(int pageNo) {
         CollectPageResult collectPageResult = fetchPage(pageNo);
         return collectPageResult.getCollectedCount();
     }
 
+    // 한 페이지를 실제로 수집 이력과 동화 테이블에 반영한다.
     public int collectAndSavePage(int pageNo) {
         CollectPageResult collectPageResult = fetchPage(pageNo);
         List<KcisaItem> items = collectPageResult.getItems();
@@ -60,6 +62,7 @@ public class NlcfCollectService {
 
         for (KcisaItem item : items) {
             item.setCollectId(collectId);
+            // 제목/작성자/등록일/URL 조합의 해시값으로 동일 데이터를 식별한다.
             item.setHashKey(makeHashKey(item));
             nlcfCollectMapper.upsertStory(item);
         }
@@ -118,6 +121,7 @@ public class NlcfCollectService {
                 }
             }
 
+            // 응답 코드가 정상이거나 item 배열이 파싱되면 수집 자체는 성공으로 간주한다.
             if ("0000".equals(resultCode) || items != null) {
                 successYn = "Y";
             }
@@ -143,6 +147,7 @@ public class NlcfCollectService {
         return value == null ? "" : value.trim();
     }
 
+    // 전체 재수집은 이전 스냅샷을 모두 지운 뒤 다시 쌓는 방식이다.
     private void resetCollectedData() {
         nlcfCollectMapper.deleteAllStories();
         nlcfCollectMapper.deleteAllCollectHistory();
@@ -158,6 +163,7 @@ public class NlcfCollectService {
         }
     }
 
+    // 외부 API 파싱 결과와 원본 응답을 함께 묶어 상위 로직에서 재사용하기 위한 내부 전달 객체다.
     private static class CollectPageResult {
         private final String requestUrl;
         private final String rawResponse;

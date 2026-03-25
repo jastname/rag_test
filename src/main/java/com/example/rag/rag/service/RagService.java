@@ -53,6 +53,7 @@ public class RagService {
 
     @Transactional
     public RagIndexResponse embedAllStories() {
+        // 현재 구현에서는 전체 인덱스를 다시 만드는 방식으로 임베딩 데이터를 최신화한다.
         RagIndexResponse response = rebuildIndex();
         response.setMessage("story DB 전체 조회 후 chunk 생성과 임베딩 저장을 완료했습니다.");
         return response;
@@ -61,6 +62,7 @@ public class RagService {
     @Transactional
     public RagIndexResponse rebuildIndex() {
         List<RagStorySource> stories = ragMapper.findAllStoriesForRag();
+        // 기존 청크/벡터를 모두 지우고 다시 적재해 원본 스토리와 인덱스 간 불일치를 줄인다.
         ragMapper.deleteAllStoryVectors();
         ragMapper.deleteAllStoryChunks();
 
@@ -68,6 +70,7 @@ public class RagService {
         int vectorCount = 0;
 
         for (RagStorySource story : stories) {
+            // 제목과 본문 설명을 하나의 검색용 텍스트로 합쳐 청킹한다.
             List<String> chunks = textChunker.chunk(buildChunkSourceText(story));
             for (int i = 0; i < chunks.size(); i++) {
                 String chunkText = chunks.get(i);
@@ -101,6 +104,7 @@ public class RagService {
 
     public RagAskResponse ask(String question, Integer requestedTopK) {
         int topK = requestedTopK == null ? ragProperties.getTopK() : requestedTopK;
+        // 질문 임베딩 -> 유사 청크 검색 -> 답변 생성 순서로 동작한다.
         List<RagChunkResult> references = search(question, topK);
         String generatedAnswer = answerGenerationService.generateAnswer(question, references);
         AnswerParts answerParts = splitAnswerParts(generatedAnswer);
@@ -138,6 +142,7 @@ public class RagService {
             scoredChunks.add(new ScoredChunk(result, similarity));
         }
 
+        // DB에 저장된 모든 벡터를 애플리케이션 메모리에서 비교한 뒤 상위 topK만 반환한다.
         return scoredChunks.stream()
                 .sorted(Comparator.comparingDouble(ScoredChunk::score).reversed())
                 .limit(Math.max(1, topK))
@@ -182,6 +187,7 @@ public class RagService {
             leftNorm += left[i] * left[i];
             rightNorm += right[i] * right[i];
         }
+        // 어느 한쪽 벡터라도 영벡터면 유사도를 0으로 본다.
         if (leftNorm == 0.0d || rightNorm == 0.0d) {
             return 0.0d;
         }
@@ -219,6 +225,7 @@ public class RagService {
             return new AnswerParts(safeAnswer, "", safeAnswer);
         }
 
+        // 모델 응답에 <think>...</think> 형식이 섞여 오면 표시용으로 사고과정과 최종 답변을 분리한다.
         String thinkPart = safeAnswer.substring(0, thinkEndIndex).trim();
         thinkPart = thinkPart.replace("<think>", "").trim();
         String corePart = safeAnswer.substring(thinkEndIndex + THINK_END_TAG.length()).trim();
