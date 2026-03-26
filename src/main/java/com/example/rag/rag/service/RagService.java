@@ -2,7 +2,10 @@ package com.example.rag.rag.service;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
@@ -27,6 +30,7 @@ public class RagService {
 
     private static final Logger log = LoggerFactory.getLogger(RagService.class);
     private static final String THINK_END_TAG = "</think>";
+    private static final Pattern USED_STORY_IDS_PATTERN = Pattern.compile("\\[\\[USED_STORY_IDS:([^\\]]*)\\]\\]");
 
     private final RagMapper ragMapper;
     private final TextChunker textChunker;
@@ -108,6 +112,7 @@ public class RagService {
         List<RagChunkResult> references = search(question, topK);
         String generatedAnswer = answerGenerationService.generateAnswer(question, references);
         AnswerParts answerParts = splitAnswerParts(generatedAnswer);
+        RagChunkResult primaryReference = extractPrimaryReference(references);
 
         RagAskResponse response = new RagAskResponse();
         response.setSuccess(true);
@@ -115,6 +120,10 @@ public class RagService {
         response.setTopK(topK);
         response.setMatchedChunkCount(references.size());
         response.setReferences(references);
+        response.setRelatedStoryIds(extractRelatedStoryIds(references));
+        response.setUsedStoryIds(answerParts.usedStoryIds());
+        response.setPrimaryReference(primaryReference);
+        response.setPrimaryStoryId(primaryReference == null ? null : primaryReference.getStoryId());
         response.setRawAnswer(answerParts.rawAnswer());
         response.setThinkAnswer(answerParts.thinkAnswer());
         response.setCoreAnswer(answerParts.coreAnswer());
@@ -147,6 +156,23 @@ public class RagService {
                 .sorted(Comparator.comparingDouble(ScoredChunk::score).reversed())
                 .limit(Math.max(1, topK))
                 .collect(Collectors.mapping(ScoredChunk::result, Collectors.toList()));
+    }
+
+    private RagChunkResult extractPrimaryReference(List<RagChunkResult> references) {
+        if (references == null || references.isEmpty()) {
+            return null;
+        }
+        return references.get(0);
+    }
+
+    private List<Long> extractRelatedStoryIds(List<RagChunkResult> references) {
+        LinkedHashSet<Long> storyIds = new LinkedHashSet<>();
+        for (RagChunkResult reference : references) {
+            if (reference.getStoryId() != null) {
+                storyIds.add(reference.getStoryId());
+            }
+        }
+        return new ArrayList<>(storyIds);
     }
 
     private String buildChunkSourceText(RagStorySource story) {
@@ -220,24 +246,59 @@ public class RagService {
 
     private AnswerParts splitAnswerParts(String answer) {
         String safeAnswer = answer == null ? "" : answer.trim();
-        int thinkEndIndex = safeAnswer.indexOf(THINK_END_TAG);
+        ParsedUsedStoryIds parsedUsedStoryIds = extractUsedStoryIds(safeAnswer);
+        String cleanedAnswer = parsedUsedStoryIds.cleanedAnswer();
+        int thinkEndIndex = cleanedAnswer.indexOf(THINK_END_TAG);
         if (thinkEndIndex < 0) {
-            return new AnswerParts(safeAnswer, "", safeAnswer);
+            return new AnswerParts(safeAnswer, "", cleanedAnswer, parsedUsedStoryIds.usedStoryIds());
         }
 
         // 모델 응답에 <think>...</think> 형식이 섞여 오면 표시용으로 사고과정과 최종 답변을 분리한다.
-        String thinkPart = safeAnswer.substring(0, thinkEndIndex).trim();
+        String thinkPart = cleanedAnswer.substring(0, thinkEndIndex).trim();
         thinkPart = thinkPart.replace("<think>", "").trim();
-        String corePart = safeAnswer.substring(thinkEndIndex + THINK_END_TAG.length()).trim();
+        String corePart = cleanedAnswer.substring(thinkEndIndex + THINK_END_TAG.length()).trim();
         if (corePart.isEmpty()) {
-            corePart = safeAnswer;
+            corePart = cleanedAnswer;
         }
-        return new AnswerParts(safeAnswer, thinkPart, corePart);
+        return new AnswerParts(safeAnswer, thinkPart, corePart, parsedUsedStoryIds.usedStoryIds());
+    }
+
+    private ParsedUsedStoryIds extractUsedStoryIds(String answer) {
+        if (answer == null) {
+            return new ParsedUsedStoryIds("", List.of());
+        }
+        Matcher matcher = USED_STORY_IDS_PATTERN.matcher(answer);
+        if (!matcher.find()) {
+            return new ParsedUsedStoryIds(answer.trim(), List.of());
+        }
+
+        String cleanedAnswer = matcher.replaceFirst("").trim();
+        String idGroup = matcher.group(1) == null ? "" : matcher.group(1).trim();
+        if (idGroup.isEmpty()) {
+            return new ParsedUsedStoryIds(cleanedAnswer, List.of());
+        }
+
+        LinkedHashSet<Long> storyIds = new LinkedHashSet<>();
+        for (String token : idGroup.split(",")) {
+            String trimmed = token.trim();
+            if (trimmed.isEmpty()) {
+                continue;
+            }
+            try {
+                storyIds.add(Long.parseLong(trimmed));
+            } catch (NumberFormatException ignored) {
+                // 모델이 잘못된 값을 넣으면 해당 토큰만 버리고 나머지는 최대한 살린다.
+            }
+        }
+        return new ParsedUsedStoryIds(cleanedAnswer, new ArrayList<>(storyIds));
     }
 
     private record ScoredChunk(RagChunkResult result, double score) {
     }
 
-    private record AnswerParts(String rawAnswer, String thinkAnswer, String coreAnswer) {
+    private record ParsedUsedStoryIds(String cleanedAnswer, List<Long> usedStoryIds) {
+    }
+
+    private record AnswerParts(String rawAnswer, String thinkAnswer, String coreAnswer, List<Long> usedStoryIds) {
     }
 }

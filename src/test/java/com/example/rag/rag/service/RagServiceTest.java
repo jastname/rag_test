@@ -18,26 +18,60 @@ class RagServiceTest {
 
     @Test
     void askSplitsThinkAndCoreAnswerWhenThinkTagExists() {
-        RagService service = createService("<think>분석 내용</think>최종 답변", List.of(createChunk()));
+        RagService service = createService("<think>분석 내용</think>최종 답변 [[USED_STORY_IDS:173,214,173]]", List.of(createChunk(173L, 10L), createChunk(173L, 11L), createChunk(214L, 12L)));
 
         RagAskResponse response = service.ask("질문", 3);
 
-        assertThat(response.getRawAnswer()).isEqualTo("<think>분석 내용</think>최종 답변");
+        assertThat(response.getRawAnswer()).isEqualTo("<think>분석 내용</think>최종 답변 [[USED_STORY_IDS:173,214,173]]");
         assertThat(response.getThinkAnswer()).isEqualTo("분석 내용");
         assertThat(response.getCoreAnswer()).isEqualTo("최종 답변");
         assertThat(response.getAnswer()).isEqualTo("최종 답변");
+        assertThat(response.getRelatedStoryIds()).containsExactly(173L, 214L);
+        assertThat(response.getUsedStoryIds()).containsExactly(173L, 214L);
+        assertThat(response.getPrimaryStoryId()).isEqualTo(173L);
+        assertThat(response.getPrimaryReference()).isNotNull();
+        assertThat(response.getPrimaryReference().getStoryId()).isEqualTo(173L);
+        assertThat(response.getPrimaryReference().getChunkId()).isEqualTo(10L);
     }
 
     @Test
     void askKeepsWholeAnswerAsCoreWhenThinkTagDoesNotExist() {
-        RagService service = createService("일반 답변", List.of(createChunk()));
+        RagService service = createService("일반 답변 [[USED_STORY_IDS:1]]", List.of(createChunk(1L, 10L)));
 
         RagAskResponse response = service.ask("질문", 3);
 
-        assertThat(response.getRawAnswer()).isEqualTo("일반 답변");
+        assertThat(response.getRawAnswer()).isEqualTo("일반 답변 [[USED_STORY_IDS:1]]");
         assertThat(response.getThinkAnswer()).isEmpty();
         assertThat(response.getCoreAnswer()).isEqualTo("일반 답변");
         assertThat(response.getAnswer()).isEqualTo("일반 답변");
+        assertThat(response.getRelatedStoryIds()).containsExactly(1L);
+        assertThat(response.getUsedStoryIds()).containsExactly(1L);
+        assertThat(response.getPrimaryStoryId()).isEqualTo(1L);
+        assertThat(response.getPrimaryReference()).isNotNull();
+        assertThat(response.getPrimaryReference().getChunkId()).isEqualTo(10L);
+    }
+
+    @Test
+    void askReturnsEmptyUsedStoryIdsWhenDelimiterIsMissingOrInvalid() {
+        RagService service = createService("일반 답변 [[USED_STORY_IDS:abc, ,not-number]]", List.of(createChunk(1L, 10L)));
+
+        RagAskResponse response = service.ask("질문", 3);
+
+        assertThat(response.getCoreAnswer()).isEqualTo("일반 답변");
+        assertThat(response.getUsedStoryIds()).isEmpty();
+    }
+
+    @Test
+    void askReturnsNullPrimaryStoryWhenNoReferencesExist() {
+        RagService service = createService("근거 없는 답변", List.of());
+
+        RagAskResponse response = service.ask("질문", 3);
+
+        assertThat(response.getMatchedChunkCount()).isZero();
+        assertThat(response.getRelatedStoryIds()).isEmpty();
+        assertThat(response.getUsedStoryIds()).isEmpty();
+        assertThat(response.getPrimaryStoryId()).isNull();
+        assertThat(response.getPrimaryReference()).isNull();
     }
 
     private RagService createService(String generatedAnswer, List<StoryChunk> chunks) {
@@ -64,10 +98,10 @@ class RagServiceTest {
         );
     }
 
-    private StoryChunk createChunk() {
+    private StoryChunk createChunk(Long storyId, Long chunkId) {
         StoryChunk chunk = new StoryChunk();
-        chunk.setStoryId(1L);
-        chunk.setChunkId(10L);
+        chunk.setStoryId(storyId);
+        chunk.setChunkId(chunkId);
         chunk.setChunkIndex(0);
         chunk.setChunkText("title: 테스트 제목\nurl: https://example.com\ndescription: 테스트 본문");
         chunk.setVectorJson("[1.0,0.0]");

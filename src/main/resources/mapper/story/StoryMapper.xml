@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.example.rag.story.mapper.StoryMapper">
+
+    <select id="findStoryById" resultType="com.example.rag.story.dto.StoryDetailResponse">
+        SELECT
+            story_id,
+            collect_id,
+            title,
+            alternative_title,
+            creator,
+            reg_date_raw,
+            collection_db,
+            subject_category,
+            subject_keyword,
+            extent,
+            description,
+            spatial_coverage,
+            temporal_info,
+            person_info,
+            language,
+            source_title,
+            reference_identifier,
+            rights_info,
+            copyright_others,
+            content_url,
+            contributor,
+            hash_key,
+            use_yn,
+            reg_dt,
+            upd_dt
+        FROM tb_nlcf_story
+        WHERE story_id = #{storyId}
+    </select>
+
+</mapper>

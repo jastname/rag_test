@@ -20,6 +20,9 @@ public class AnswerGenerationService {
     private final RestClient restClient;
     private final RagProperties ragProperties;
 
+    private static final String USED_STORY_IDS_PREFIX = "[[USED_STORY_IDS:";
+    private static final String USED_STORY_IDS_SUFFIX = "]]";
+
     public AnswerGenerationService(RestClient restClient, RagProperties ragProperties) {
         this.restClient = restClient;
         this.ragProperties = ragProperties;
@@ -78,15 +81,19 @@ public class AnswerGenerationService {
         StringJoiner joiner = new StringJoiner("\n\n");
         for (int i = 0; i < references.size(); i++) {
             RagChunkResult ref = references.get(i);
-            // 모델이 참조 순서를 이해하기 쉽도록 번호와 제목을 함께 묶어 전달한다.
-            joiner.add("#" + (i + 1) + " " + safe(ref.getTitle()) + "\n"
+            // 모델이 참조 순서를 이해하기 쉽도록 번호와 제목, storyId를 함께 묶어 전달한다.
+            joiner.add("#" + (i + 1)
+                    + " [storyId=" + safeStoryId(ref.getStoryId()) + "] " + safe(ref.getTitle()) + "\n"
                     + "<pre>" + extractDescription(ref.getChunkText()) + "</pre>");
         }
 
         return "당신은 검색 증강 생성(RAG) 도우미입니다. "
                 + "반드시 제공된 문맥만 근거로 한국어로 답변하세요. "
                 + "어린아이에게 알려주는 식으로 답변하세요. "
-                + "문맥에 없는 내용은 추측하지 말고 모른다고 답하세요. \n\n"
+                + "문맥에 없는 내용은 추측하지 말고 모른다고 답하세요. "
+                + "답변 본문 마지막에는 당신이 실제로 사용한 storyId만 '" + USED_STORY_IDS_PREFIX + "id1,id2" + USED_STORY_IDS_SUFFIX + "' 형식으로 한 번만 덧붙이세요. "
+                + "storyId를 전혀 사용하지 않았다면 '" + USED_STORY_IDS_PREFIX + USED_STORY_IDS_SUFFIX + "' 로 마무리하세요. "
+                + "구분자 블록 밖에는 storyId 목록 설명을 쓰지 마세요.\n\n"
                 + "질문:\n" + question + "\n\n"
                 + "검색 문맥:\n" + joiner;
     }
@@ -101,6 +108,10 @@ public class AnswerGenerationService {
             }
         }
         return chunkText.trim();
+    }
+
+    private String safeStoryId(Long storyId) {
+        return storyId == null ? "" : String.valueOf(storyId);
     }
 
     private String safe(String value) {

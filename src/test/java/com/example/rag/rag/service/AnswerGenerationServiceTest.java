@@ -42,6 +42,7 @@ class AnswerGenerationServiceTest {
 
         AnswerGenerationService service = new AnswerGenerationService(RestClient.create(), properties);
         RagChunkResult chunk = new RagChunkResult();
+        chunk.setStoryId(173L);
         chunk.setTitle("설화 제목");
         chunk.setChunkText("title: 설화 제목\nstoryTitle: 설화 제목\ndescription: 옛날 옛적 이야기입니다.");
         chunk.setSourceUrl("https://example.com/story");
@@ -57,8 +58,10 @@ class AnswerGenerationServiceTest {
         assertThat(requestBody).contains("\"model\":\"qwen3:4b\"")
                 .contains("\"stream\":false")
                 .contains("무슨 이야기야?")
-                .contains("#1 설화 제목")
+                .contains("#1 [storyId=173] 설화 제목")
                 .contains("<pre>옛날 옛적 이야기입니다.</pre>")
+                .contains("[[USED_STORY_IDS:id1,id2]]")
+                .contains("[[USED_STORY_IDS:]]")
                 .doesNotContain("storyTitle:")
                 .doesNotContain("title: 설화 제목")
                 .doesNotContain("description: 옛날 옛적 이야기입니다.");
@@ -79,6 +82,7 @@ class AnswerGenerationServiceTest {
 
         AnswerGenerationService service = new AnswerGenerationService(RestClient.create(), properties);
         RagChunkResult chunk = new RagChunkResult();
+        chunk.setStoryId(55L);
         chunk.setTitle("슬기로운 효자");
         chunk.setChunkText("title: 슬기로운 효자\nstoryTitle: 슬기로운 효자\ndescription: 옛날에 한 부부가 살았어요.");
 
@@ -86,7 +90,7 @@ class AnswerGenerationServiceTest {
         RecordedRequest request = server.takeRequest();
         String requestBody = request.getBody().readUtf8();
 
-        assertThat(requestBody).contains("#1 슬기로운 효자")
+        assertThat(requestBody).contains("#1 [storyId=55] 슬기로운 효자")
                 .contains("<pre>옛날에 한 부부가 살았어요.</pre>")
                 .doesNotContain("storyTitle: 슬기로운 효자")
                 .doesNotContain("유사도:")

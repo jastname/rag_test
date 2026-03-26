@@ -13,6 +13,10 @@ public class RagAskResponse {
     private int topK;
     private int matchedChunkCount;
     private List<RagChunkResult> references;
+    private List<Long> relatedStoryIds;
+    private List<Long> usedStoryIds;
+    private Long primaryStoryId;
+    private RagChunkResult primaryReference;
 
     public boolean isSuccess() {
         return success;
@@ -84,5 +88,37 @@ public class RagAskResponse {
 
     public void setReferences(List<RagChunkResult> references) {
         this.references = references;
+    }
+
+    public List<Long> getRelatedStoryIds() {
+        return relatedStoryIds;
+    }
+
+    public void setRelatedStoryIds(List<Long> relatedStoryIds) {
+        this.relatedStoryIds = relatedStoryIds;
+    }
+
+    public List<Long> getUsedStoryIds() {
+        return usedStoryIds;
+    }
+
+    public void setUsedStoryIds(List<Long> usedStoryIds) {
+        this.usedStoryIds = usedStoryIds;
+    }
+
+    public Long getPrimaryStoryId() {
+        return primaryStoryId;
+    }
+
+    public void setPrimaryStoryId(Long primaryStoryId) {
+        this.primaryStoryId = primaryStoryId;
+    }
+
+    public RagChunkResult getPrimaryReference() {
+        return primaryReference;
+    }
+
+    public void setPrimaryReference(RagChunkResult primaryReference) {
+        this.primaryReference = primaryReference;
     }
 }
