@@ -12,6 +12,10 @@ public interface NlcfCollectMapper {
 
     int upsertStory(KcisaItem item);
 
+    int deleteAllEmbeddings();
+    
+    int deleteAllChunks();
+    
     int deleteAllStories();
 
     int deleteAllCollectHistory();

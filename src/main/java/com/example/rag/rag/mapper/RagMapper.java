@@ -41,9 +41,9 @@ public interface RagMapper {
     // 설명형 질의나 확장 키워드 보강 검색에 사용한다.
     List<StoryChunk> findChunksByDescriptionKeyword(@Param("keyword") String keyword, @Param("limit") int limit);
 
-    // 벡터 유사도 계산 대상이 되는 후보 청크를 가져온다.
-    // 현재는 Java에서 similarity를 계산하므로 원문 벡터까지 함께 읽는다.
-    List<StoryChunk> findVectorCandidateChunks(@Param("limit") int limit);
+    // 벡터 유사도 기반 후보 청크를 가져온다.
+    // pgvector cosine distance 연산자로 DB에서 직접 정렬하므로 상위 N개만 효율적으로 반환한다.
+    List<StoryChunk> findVectorCandidateChunks(@Param("queryVector") String queryVector, @Param("limit") int limit);
 
     // 전체 청크+벡터를 한 번에 읽는 레거시/보조 메서드다.
     // 현재 주 검색 경로에서는 직접 사용하지 않지만 테스트나 보조 작업에서 재사용할 수 있다.

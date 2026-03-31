@@ -9,7 +9,6 @@ public class RagProperties {
     private int chunkOverlap = 80;
     private int topK = 5;
     private Embedding embedding = new Embedding();
-    private Llm llm = new Llm();
 
     public int getChunkSize() {
         return chunkSize;
@@ -43,20 +42,11 @@ public class RagProperties {
         this.embedding = embedding;
     }
 
-    public Llm getLlm() {
-        return llm;
-    }
-
-    public void setLlm(Llm llm) {
-        this.llm = llm;
-    }
-
-    // 임베딩 모델 호출에 필요한 설정 묶음이다.
+    // 임베딩 관련 설정 중 Spring AI가 관리하지 않는 항목만 남긴다.
     public static class Embedding {
         private int dimensions = 64;
-        private String model = "nomic-embed-text:latest";
-        private String apiUrl;
-        private String apiKey;
+        // 제목 임베딩 벡터의 가중치. 나머지(1 - titleWeight)가 설명 벡터 가중치가 된다.
+        private double titleWeight = 0.7;
 
         public int getDimensions() {
             return dimensions;
@@ -66,59 +56,12 @@ public class RagProperties {
             this.dimensions = dimensions;
         }
 
-        public String getModel() {
-            return model;
+        public double getTitleWeight() {
+            return titleWeight;
         }
 
-        public void setModel(String model) {
-            this.model = model;
-        }
-
-        public String getApiUrl() {
-            return apiUrl;
-        }
-
-        public void setApiUrl(String apiUrl) {
-            this.apiUrl = apiUrl;
-        }
-
-        public String getApiKey() {
-            return apiKey;
-        }
-
-        public void setApiKey(String apiKey) {
-            this.apiKey = apiKey;
-        }
-    }
-
-    // 답변 생성용 LLM 호출에 필요한 설정 묶음이다.
-    public static class Llm {
-        private String apiUrl;
-        private String apiKey;
-        private String model = "local-rag-template";
-
-        public String getApiUrl() {
-            return apiUrl;
-        }
-
-        public void setApiUrl(String apiUrl) {
-            this.apiUrl = apiUrl;
-        }
-
-        public String getApiKey() {
-            return apiKey;
-        }
-
-        public void setApiKey(String apiKey) {
-            this.apiKey = apiKey;
-        }
-
-        public String getModel() {
-            return model;
-        }
-
-        public void setModel(String model) {
-            this.model = model;
+        public void setTitleWeight(double titleWeight) {
+            this.titleWeight = titleWeight;
         }
     }
 }

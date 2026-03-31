@@ -121,11 +121,20 @@ public class RagService {
                 ragMapper.insertStoryChunk(storyChunk);
                 chunkCount++;
 
+                // 제목과 설명을 따로 임베딩한 뒤, 가중 평균 벡터를 계산해 저장한다.
+                // 제목 가중치가 높을수록 제목 유사 질의에 민감해지고,
+                // 설명 가중치가 높을수록 내용 유사 질의에 민감해진다.
+                double titleWeight = ragProperties.getEmbedding().getTitleWeight();
+                double descWeight = 1.0d - titleWeight;
+                double[] titleVector = embeddingService.embed(safe(story.getTitle()));
+                double[] descVector = embeddingService.embed(chunkText);
+                double[] weightedVector = weightedAverage(titleVector, descVector, titleWeight, descWeight);
+
                 StoryVector storyVector = new StoryVector();
                 storyVector.setChunkId(storyChunk.getChunkId());
                 storyVector.setStoryId(story.getStoryId());
                 storyVector.setEmbeddingModel(embeddingService.modelName());
-                storyVector.setVectorJson(toJson(embeddingService.embed(chunkText)));
+                storyVector.setVectorJson(toJson(weightedVector));
                 ragMapper.insertStoryVector(storyVector);
                 vectorCount++;
             }
@@ -148,6 +157,35 @@ public class RagService {
         int topK = requestedTopK == null ? ragProperties.getTopK() : requestedTopK;
         List<RagChunkResult> references = search(question, topK);
         String generatedAnswer = answerGenerationService.generateAnswer(question, references);
+        return buildAskResponse(question, topK, references, generatedAnswer);
+    }
+
+    /**
+     * SSE 스트리밍 방식의 질의 처리.
+     * 이벤트 전송 순서:
+     *   1) "references" — 검색 완료 직후, 토큰 스트리밍 시작 전에 참조 청크 전송
+     *   2) "token" (기본 data 이벤트) — LLM 토큰 스트리밍
+     * emitter의 complete는 컨트롤러에서 "result" 이벤트 전송 후 호출한다.
+     */
+    public RagAskResponse askStream(String question, Integer requestedTopK, org.springframework.web.servlet.mvc.method.annotation.SseEmitter emitter) {
+        int topK = requestedTopK == null ? ragProperties.getTopK() : requestedTopK;
+        List<RagChunkResult> references = search(question, topK);
+
+        // 검색 완료 직후 참조 청크를 먼저 전송한다.
+        // 프론트에서 토큰 스트리밍이 시작되기 전에 참조 목록을 표시할 수 있다.
+        try {
+            emitter.send(org.springframework.web.servlet.mvc.method.annotation.SseEmitter.event()
+                    .name("references")
+                    .data(references));
+        } catch (Exception e) {
+            log.warn("[RAG][SSE] references 전송 실패", e);
+        }
+
+        String generatedAnswer = answerGenerationService.generateAnswerStream(question, references, emitter);
+        return buildAskResponse(question, topK, references, generatedAnswer);
+    }
+
+    private RagAskResponse buildAskResponse(String question, int topK, List<RagChunkResult> references, String generatedAnswer) {
         AnswerParts answerParts = splitAnswerParts(generatedAnswer);
         RagChunkResult primaryReference = extractPrimaryReference(references);
 
@@ -270,12 +308,12 @@ public class RagService {
     }
 
     private void collectVectorCandidates(Map<Long, ScoredChunkAccumulator> scoredChunks, double[] queryVector, int vectorCandidateLimit) {
-        // 벡터 후보는 의미 유사성을 보완하는 마지막 축이다.
-        // 현재는 후보 청크를 가져온 뒤 Java에서 cosine similarity를 계산해 누적한다.
-        // 추후 pgvector distance 정렬로 옮기면 성능을 더 개선할 수 있다.
-        for (StoryChunk chunk : ragMapper.findVectorCandidateChunks(vectorCandidateLimit)) {
-            double[] chunkVector = fromJson(chunk.getVectorJson());
-            double similarity = cosineSimilarity(queryVector, chunkVector);
+        // pgvector의 cosine distance 연산자(<=>)를 사용해 DB에서 직접 상위 후보를 뽑는다.
+        // cosine distance = 1 - cosine similarity 이므로, similarity = 1 - distance 로 변환한다.
+        String queryVectorJson = toJson(queryVector);
+        for (StoryChunk chunk : ragMapper.findVectorCandidateChunks(queryVectorJson, vectorCandidateLimit)) {
+            double distance = chunk.getDistance() != null ? chunk.getDistance() : 1.0d;
+            double similarity = 1.0d - distance;
             double weightedVectorScore = clampSimilarity(similarity) * VECTOR_SIMILARITY_WEIGHT;
             accumulateChunkScore(scoredChunks, chunk, weightedVectorScore, similarity);
         }
@@ -499,6 +537,26 @@ public class RagService {
         } catch (Exception e) {
             throw new IllegalStateException("벡터 JSON 파싱에 실패했습니다.", e);
         }
+    }
+
+    private double[] weightedAverage(double[] vectorA, double[] vectorB, double weightA, double weightB) {
+        // 두 벡터를 가중 합산한 뒤 L2 정규화한다.
+        // 정규화하면 cosine similarity 계산 시 벡터 크기 차이에 의한 왜곡을 방지한다.
+        int length = Math.min(vectorA.length, vectorB.length);
+        double[] result = new double[length];
+        double norm = 0.0d;
+        for (int i = 0; i < length; i++) {
+            result[i] = weightA * vectorA[i] + weightB * vectorB[i];
+            norm += result[i] * result[i];
+        }
+        // L2 정규화
+        if (norm > 0.0d) {
+            norm = Math.sqrt(norm);
+            for (int i = 0; i < length; i++) {
+                result[i] /= norm;
+            }
+        }
+        return result;
     }
 
     private double cosineSimilarity(double[] left, double[] right) {

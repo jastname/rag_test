@@ -149,7 +149,9 @@ public class NlcfCollectService {
 
     // 전체 재수집은 이전 스냅샷을 모두 지운 뒤 다시 쌓는 방식이다.
     private void resetCollectedData() {
-        nlcfCollectMapper.deleteAllStories();
+    	nlcfCollectMapper.deleteAllEmbeddings();
+    	nlcfCollectMapper.deleteAllChunks();
+    	nlcfCollectMapper.deleteAllStories();
         nlcfCollectMapper.deleteAllCollectHistory();
     }
 

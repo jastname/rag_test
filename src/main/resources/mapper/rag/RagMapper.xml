@@ -141,18 +141,20 @@
         LIMIT #{limit}
     </select>
 
-    <!-- 벡터 유사도 계산 대상 후보 조회.
-         현재는 SQL에서 distance 정렬하지 않고, Java 쪽에서 cosine similarity를 계산한다. -->
+    <!-- 벡터 유사도 기반 후보 조회.
+         pgvector의 cosine distance 연산자(<=>) 를 사용해 DB에서 직접 정렬한다.
+         거리가 작을수록 유사하므로 ASC 정렬 후 LIMIT으로 상위 후보를 가져온다. -->
     <select id="findVectorCandidateChunks" resultType="com.example.rag.rag.model.StoryChunk">
         SELECT
             c.chunk_id,
             c.story_id,
             c.chunk_no AS chunk_index,
             c.chunk_text,
-            CAST(e.embedding_vector AS text) AS vector_json
+            CAST(e.embedding_vector AS text) AS vector_json,
+            (e.embedding_vector &lt;=&gt; CAST(#{queryVector} AS vector)) AS distance
         FROM tb_nlcf_story_chunk c
         JOIN tb_nlcf_story_embedding e ON e.chunk_id = c.chunk_id
-        ORDER BY c.chunk_id
+        ORDER BY e.embedding_vector &lt;=&gt; CAST(#{queryVector} AS vector)
         LIMIT #{limit}
     </select>
 

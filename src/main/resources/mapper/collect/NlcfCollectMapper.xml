@@ -4,7 +4,16 @@
   "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
 <mapper namespace="com.example.rag.collect.mapper.NlcfCollectMapper">
-
+	
+	
+	<delete id="deleteAllEmbeddings">
+        DELETE FROM tb_nlcf_story_embedding
+    </delete>
+	
+	<delete id="deleteAllChunks">
+        DELETE FROM tb_nlcf_story_chunk
+    </delete>
+	
     <delete id="deleteAllStories">
         DELETE FROM tb_nlcf_story
     </delete>

@@ -7,6 +7,8 @@ public class StoryChunk {
     private int chunkIndex;
     private String chunkText;
     private String vectorJson;
+    // pgvector cosine distance 결과를 담는 필드. DB에서 계산된 값이 매핑된다.
+    private Double distance;
 
     public Long getChunkId() {
         return chunkId;
@@ -46,5 +48,13 @@ public class StoryChunk {
 
     public void setVectorJson(String vectorJson) {
         this.vectorJson = vectorJson;
+    }
+
+    public Double getDistance() {
+        return distance;
+    }
+
+    public void setDistance(Double distance) {
+        this.distance = distance;
     }
 }

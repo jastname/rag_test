@@ -154,7 +154,7 @@ class RagServiceTest {
         // 어떤 식으로 합산되는지 테스트에서 결정론적으로 검증할 수 있다.
         RagMapper ragMapper = mock(RagMapper.class);
         when(ragMapper.findAllChunksWithVectors()).thenReturn(chunks);
-        when(ragMapper.findVectorCandidateChunks(anyInt())).thenReturn(chunks);
+        when(ragMapper.findVectorCandidateChunks(anyString(), anyInt())).thenReturn(chunks);
         when(ragMapper.findChunksByExactTitle(anyString())).thenAnswer(invocation -> {
             String title = invocation.getArgument(0, String.class);
             return chunks.stream()

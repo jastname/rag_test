@@ -10,8 +10,18 @@ spring:
   datasource:
     url: "jdbc:postgresql://localhost:15432/appdb"
     username: "appTest"
-    password: "landsoft13!#"
+    password: ""
     driver-class-name: org.postgresql.Driver
+
+  ai:
+    ollama:
+      base-url: http://127.0.0.1:11434
+      chat:
+        options:
+          model: qwen3:4b
+      embedding:
+        options:
+          model: nomic-embed-text:latest
 
 server:
   port: 8080
@@ -30,13 +40,7 @@ app:
     top-k: 10
     embedding:
       dimensions: 64
-      model: nomic-embed-text:latest
-      api-url: http://127.0.0.1:11434/api/embeddings
-      api-key:
-    llm:
-      api-url: http://127.0.0.1:11434/api/generate
-      api-key:
-      model: qwen3:4b
+      title-weight: 0.7
 
 mybatis:
   mapper-locations: classpath:/mapper/**/*.xml

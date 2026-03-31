@@ -5,16 +5,16 @@ import java.util.StringJoiner;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.MediaType;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
-import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClientException;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import com.example.rag.common.config.RagProperties;
-import com.example.rag.rag.dto.OllamaGenerateRequest;
-import com.example.rag.rag.dto.OllamaGenerateResponse;
 import com.example.rag.rag.dto.RagChunkResult;
+
+import reactor.core.publisher.Flux;
 
 @Service
 public class AnswerGenerationService {
@@ -23,20 +23,17 @@ public class AnswerGenerationService {
     // 검색은 RagService가 담당하고, 여기서는 '어떻게 질문/문맥을 모델에 전달할지'에 집중한다.
 
     private static final Logger log = LoggerFactory.getLogger(AnswerGenerationService.class);
-    private final RestClient restClient;
-    private final RagProperties ragProperties;
+    private final ChatModel chatModel;
 
     private static final String USED_STORY_IDS_PREFIX = "[[USED_STORY_IDS:";
     private static final String USED_STORY_IDS_SUFFIX = "]]";
 
-    public AnswerGenerationService(RestClient restClient, RagProperties ragProperties) {
-        this.restClient = restClient;
-        this.ragProperties = ragProperties;
+    public AnswerGenerationService(ChatModel chatModel) {
+        this.chatModel = chatModel;
     }
 
     public String generateAnswer(String question, List<RagChunkResult> references) {
-        // 빈 질문, 빈 검색 결과는 모델 호출 전에 빠르게 차단한다.
-        // 이렇게 해야 불필요한 외부 호출과 애매한 모델 응답을 줄일 수 있다.
+        // ...existing code...
         if (!StringUtils.hasText(question)) {
             return "질문이 비어 있습니다. 질문 내용을 입력해주세요.";
         }
@@ -46,55 +43,101 @@ public class AnswerGenerationService {
 
         log.info("[RAG][PROMPT] question='{}', referenceCount={}", question, references.size());
 
-        String apiUrl = ragProperties.getLlm().getApiUrl();
-        if (!StringUtils.hasText(apiUrl)) {
-            throw new IllegalStateException("LLM API URL이 설정되지 않았습니다.");
-        }
+        String promptText = buildPrompt(question, references);
+        log.info("[RAG][PROMPT] final prompt:\n{}", promptText);
 
-        // 질문과 검색 문맥을 하나의 프롬프트로 합쳐 모델에 전달한다.
-        // 프롬프트 전문은 디버깅을 위해 로그에 남긴다.
-        String prompt = buildPrompt(question, references);
-        log.info("[RAG][PROMPT] final prompt:\n{}", prompt);
-        OllamaGenerateResponse response;
+        ChatResponse response;
         try {
-            RestClient.RequestBodySpec request = restClient.post()
-                    .uri(apiUrl)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .accept(MediaType.APPLICATION_JSON);
-
-            String apiKey = ragProperties.getLlm().getApiKey();
-            // 로컬 Ollama 는 보통 키가 없지만, 외부 호환 API 로 바꿔도 같은 코드를 재사용할 수 있게 열어둔다.
-            if (StringUtils.hasText(apiKey)) {
-                request = request.header("Authorization", "Bearer " + apiKey);
-            }
-
-            // stream=false 로 한 번에 완성된 응답을 받아 후처리를 단순화한다.
-            response = request
-                    .body(new OllamaGenerateRequest(modelName(), prompt, false))
-                    .retrieve()
-                    .body(OllamaGenerateResponse.class);
-        } catch (RestClientException e) {
-            throw new IllegalStateException("Ollama 생성 API 호출에 실패했습니다.", e);
+            response = chatModel.call(new Prompt(promptText));
+        } catch (Exception e) {
+            throw new IllegalStateException("Spring AI ChatModel 호출에 실패했습니다.", e);
         }
 
-        // response 필드는 실제 모델 생성 텍스트이므로 비어 있으면 실패로 본다.
-        if (response == null || !StringUtils.hasText(response.response())) {
-            throw new IllegalStateException("Ollama 생성 응답에 response 값이 없습니다.");
+        if (response == null || response.getResult() == null
+                || !StringUtils.hasText(response.getResult().getOutput().getText())) {
+            throw new IllegalStateException("ChatModel 응답에 텍스트 값이 없습니다.");
         }
 
-        String trimmedResponse = response.response().trim();
+        String trimmedResponse = response
+                                .getResult()
+                                .getOutput()
+                                .getText()
+                                .trim();
         log.info("[RAG][PROMPT] model response:\n{}", trimmedResponse);
         return trimmedResponse;
     }
 
-    private String modelName() {
-        // 모델명을 명시적으로 설정하지 않으면 기본 모델을 사용한다.
-        // 운영 환경별 설정 파일에서 바꾸기 쉽게 메서드로 분리했다.
-        String configuredModel = ragProperties.getLlm().getModel();
-        return StringUtils.hasText(configuredModel)
-                ? configuredModel
-                : "qwen3:4b";
+    /**
+     * 스트리밍 방식으로 LLM 답변을 생성한다.
+     * SseEmitter에 토큰 단위로 전송하면서 전체 응답도 수집하여 반환한다.
+     * 검색 단계(search)는 호출 전에 완료되어 있어야 한다.
+     */
+    public String generateAnswerStream(String question, List<RagChunkResult> references, SseEmitter emitter) {
+        if (!StringUtils.hasText(question)) {
+            String msg = "질문이 비어 있습니다. 질문 내용을 입력해주세요.";
+            sendSseEvent(emitter, msg);
+            return msg;
+        }
+        if (references == null || references.isEmpty()) {
+            String msg = "관련 청크를 찾지 못했습니다. 먼저 RAG 인덱싱을 실행한 뒤 다시 질문해주세요.";
+            sendSseEvent(emitter, msg);
+            return msg;
+        }
+
+        log.info("[RAG][STREAM] question='{}', referenceCount={}", question, references.size());
+
+        String promptText = buildPrompt(question, references);
+        log.info("[RAG][STREAM] final prompt:\n{}", promptText);
+
+        StringBuilder fullResponse = new StringBuilder();
+        try {
+            Flux<ChatResponse> stream = chatModel.stream(new Prompt(promptText));
+            // blockLast()로 스트림을 구독하면서 토큰마다 SSE 전송한다.
+            // emitter의 완료 처리는 컨트롤러에서 담당하므로 여기서는 토큰 전송만 한다.
+            stream.doOnNext(chatResponse -> {
+                if (chatResponse.getResult() != null
+                        && chatResponse.getResult().getOutput() != null
+                        && chatResponse.getResult().getOutput().getText() != null) {
+                    String token = chatResponse.getResult().getOutput().getText();
+                    fullResponse.append(token);
+                    sendSseEvent(emitter, token);
+                }
+            })
+            .doOnComplete(() -> {
+                log.info("[RAG][STREAM] stream completed. fullResponse length={}", fullResponse.length());
+            })
+            .doOnError(error -> {
+                log.error("[RAG][STREAM] stream error", error);
+            })
+            .blockLast();
+        } catch (Exception e) {
+            log.error("[RAG][STREAM] ChatModel 스트리밍 호출 실패", e);
+            emitter.completeWithError(e);
+            throw new IllegalStateException("Spring AI ChatModel 스트리밍 호출에 실패했습니다.", e);
+        }
+
+        String result = fullResponse.toString().trim();
+        log.info("[RAG][STREAM] model response:\n{}", result);
+        return result;
     }
+
+    private void sendSseEvent(SseEmitter emitter, String data) {
+        try {
+            emitter.send(SseEmitter.event().data(data));
+        } catch (Exception e) {
+            log.warn("[RAG][SSE] 토큰 전송 실패 (클라이언트 연결 종료 가능)", e);
+        }
+    }
+
+    private void completeSse(SseEmitter emitter) {
+        try {
+            emitter.complete();
+        } catch (Exception e) {
+            log.warn("[RAG][SSE] emitter complete 실패", e);
+        }
+    }
+
+    // ...existing buildPrompt, extractDescription, safeStoryId, safe methods...
 
     private String buildPrompt(String question, List<RagChunkResult> references) {
         // 검색 문맥은 번호 + storyId + 제목 + 설명 본문 형태로 직렬화한다.
@@ -114,7 +157,7 @@ public class AnswerGenerationService {
                 + "반드시 제공된 문맥만 근거로 한국어로 답변하세요. "
                 + "어린아이에게 알려주는 식으로 답변하세요. "
                 + "문맥에 없는 내용은 추측하지 말고 모른다고 답하세요. "
-                + "답변 본문 마지막에는 당신이 실제로 사용한 storyId만 '" + USED_STORY_IDS_PREFIX + "id1,id2" + USED_STORY_IDS_SUFFIX + "' 형식으로 한 번만 덧붙이세요. "
+                + "답변 본문 마지막에는 질문과 관련있고 당신이 실제로 사용한 storyId만 '" + USED_STORY_IDS_PREFIX + "id1,id2" + USED_STORY_IDS_SUFFIX + "' 형식으로 한 번만 덧붙이세요. "
                 + "storyId를 전혀 사용하지 않았다면 '" + USED_STORY_IDS_PREFIX + USED_STORY_IDS_SUFFIX + "' 로 마무리하세요. "
                 + "구분자 블록 밖에는 storyId 목록 설명을 쓰지 마세요.\n\n"
                 + "질문:\n" + question + "\n\n"
